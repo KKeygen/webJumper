@@ -5,12 +5,12 @@
     <script>
         window.onload = function() {
             var hash = window.location.hash.substr(1);
-            if (hash.startsWith("https://")) {
+
                 var link = document.createElement("a");
                 link.href = hash;
                 link.rel = "noreferrer";
                 link.click();
-            }
+            
         };
     </script>
 </head>
