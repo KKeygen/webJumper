@@ -244,6 +244,10 @@
                 app_channel = 'uc_platform';
                 requiresCustomConfig = true;
                 log(`根据 APK 包名特征判定为【UC/9Game uc_platform】渠道包。`);
+            } else if (packageName.includes('.m4399') || packageName.includes('m4399')) {
+                app_channel = '4399com';
+                requiresCustomConfig = true;
+                log(`根据 APK 包名特征判定为【4399 游戏盒 4399com】渠道包。`);
             } else {
                 requiresCustomConfig = true; // 其它如小米/应用宝等需要继续分析 assets 内的参数
             }
@@ -251,7 +255,7 @@
             // --- 3. 对于重度渠道寻找 assets 内核加密数据 ---
             let dataEntry = null;
             if (requiresCustomConfig) {
-                const targetFiles = ['assets/xiaomi_app_data', 'assets/huawei_data', 'assets/myapp_data', 'assets/honor_sdk_data', 'assets/uc_platform_data'];
+                const targetFiles = ['assets/xiaomi_app_data', 'assets/huawei_data', 'assets/myapp_data', 'assets/honor_sdk_data', 'assets/uc_platform_data', 'assets/4399com_data'];
                 
                 for (let obj of entries) {
                     if (targetFiles.includes(obj.filename)) {
@@ -360,7 +364,8 @@
                     log(`腾讯应用宝专属参数 ysdkconf 加载完毕。`);
                 }
             }
-            else if (app_channel === 'honor_sdk') {
+
+            else if (app_channel === 'honor_sdk') {
                 channelData = {};
                 // 从 AndroidManifest 提取 appid 和 cpid
                 if (manifestJson && manifestJson.application && Array.isArray(manifestJson.application.metaData)) {
@@ -442,6 +447,44 @@
                     }
                 }
                 log(`UC/9Game 专属参数提取完毕。`);
+            }
+
+            else if (app_channel === '4399com') {
+                channelData = {};
+                // 从 4399com_data 解密后提取 APP_KEY，即 4399 通行证侧的 gamekey（用于 oauth.html 换取登录 URL）
+                if (myData) {
+                    channelData.app_key = validateData(myData, "APP_KEY");
+                    log(`提取 4399 gamekey/APP_KEY (解密后): ${channelData.app_key}`);
+                }
+                channelData.channel_id = "4399com";
+                channelData.package_name = packageName;
+                // 从 channel_infos_data 提取 SDK 版本（形如 {"main_channel":{"4399com_16":{"channel_id":"4399com","version":"V3.16.0(3)"}}})
+                const ciEntry = entries.find(e => e.filename === 'assets/channel_infos_data');
+                if (ciEntry) {
+                    const ciText = await ciEntry.getData(new zip.TextWriter());
+                    try {
+                        const ciData = JSON.parse(ciText);
+                        const mainChannel = ciData.main_channel || {};
+                        const chanKey = Object.keys(mainChannel).find(k => k.startsWith('4399com')) || Object.keys(mainChannel)[0];
+                        if (chanKey && mainChannel[chanKey].version) {
+                            channelData.sdk_ver = mainChannel[chanKey].version.replace(/^V/i, '');
+                            log(`提取 4399 SDK 版本 (channel_infos): ${channelData.sdk_ver}`);
+                        }
+                    } catch(e) { log(`⚠️ channel_infos_data 解析失败`); }
+                }
+                // Fallback: ReadMe_UniSDK.txt
+                if (!channelData.sdk_ver) {
+                    const readmeEntry = entries.find(e => e.filename === 'ReadMe_UniSDK.txt');
+                    if (readmeEntry) {
+                        const readmeText = await readmeEntry.getData(new zip.TextWriter());
+                        const match = readmeText.match(/4399com_\d+\s+([\d.]+)/);
+                        if (match) {
+                            channelData.sdk_ver = match[1];
+                            log(`提取 4399 SDK 版本 (ReadMe): ${channelData.sdk_ver}`);
+                        }
+                    }
+                }
+                log(`4399 专属参数提取完毕。`);
             }
 
             // --- 6. 完成装箱：打平属性与组合封包结构 ---
