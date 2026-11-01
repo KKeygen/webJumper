@@ -266,7 +266,8 @@
         checked_count += 1
       else:
         module = "src." + rel_path[4:-3].replace("/", ".")
-        local_source = sha256_bytes(files[rel_path])
+        source_bytes = files[rel_path].replace(b"\\r\\n", b"\\n").replace(b"\\n", b"\\r\\n")
+        local_source = sha256_bytes(source_bytes)
         state = classify_match(module, local_source, None)
         if state == "missing":
           missing.append(module)
